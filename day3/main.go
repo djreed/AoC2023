@@ -197,10 +197,10 @@ func (grid Grid) Search() (numbers []Number, symbols []Symbol) {
 						numbers = append(numbers, Number{num, cell, secondDigit})
 						continue
 					} else {
-							// Three unique digits
-							num := RunesToInt(thirdDigit.Contents, secondDigit.Contents, cell.Contents)
-							numbers = append(numbers, Number{num, cell, thirdDigit})
-							continue
+						// Three unique digits
+						num := RunesToInt(thirdDigit.Contents, secondDigit.Contents, cell.Contents)
+						numbers = append(numbers, Number{num, cell, thirdDigit})
+						continue
 					}
 				}
 			}
