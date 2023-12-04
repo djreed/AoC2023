@@ -6,6 +6,8 @@ import (
 	"math"
 	"os"
 	"strconv"
+
+	"golang.org/x/exp/maps"
 )
 
 type CellType int
@@ -27,13 +29,13 @@ type Cell struct {
 }
 
 type Number struct {
-	num   int
-	start Cell
-	end   Cell
+	Val   int
+	Start Cell
+	End   Cell
 }
 
 type Symbol struct {
-	c Cell
+	Cell Cell
 }
 
 /*
@@ -76,18 +78,58 @@ func main() {
 		row++
 	}
 
+	numbers, symbols := grid.Search()
+
+	// Part 1
 	sum := 0
-	numbers, _ /*symbols*/ := grid.Search()
 	for _, n := range numbers {
-		adjacent, sym := n.AdjacentToType(grid, SYMBOL)
+		adjacencies := n.AdjacentToType(grid, SYMBOL)
 		// adjacentAst, ast := n.AdjacentToType(grid, ASTERISK)
-		if adjacent {
-			sum += n.num
-			fmt.Printf("Part %d at (%d, %d) is next to a symbol (%s)\n", n.num, n.start.Location.Row, n.start.Location.Col, sym)
+		if len(adjacencies) > 0 {
+			sum += n.Val
+			fmt.Printf("Part %d at (%d, %d) is next to a symbol (%s)\n", n.Val, n.Start.Location.Row, n.Start.Location.Col, string(adjacencies[0].Contents))
 		}
 	}
 
 	fmt.Printf("Part Sum: %d\n", sum)
+	// End of Part 1
+
+	// Part 2
+
+	// Map cells to the Number they correspond to
+	numberMap := make(map[Loc]Number)
+	for _, n := range numbers {
+		numberMap[n.Start.Location] = n
+		numberMap[n.End.Location] = n
+	}
+
+	gearRatioSum := 0
+	for _, sym := range symbols {
+		if sym.Cell.Contents != '*' {
+			continue
+		} else {
+			uniqueNumberMap := make(map[Number]bool)
+			adjacentNumbers := sym.Cell.AdjacentToType(grid, NUMBER)
+			for _, cell := range adjacentNumbers {
+				if num, ok := numberMap[cell.Location]; ok {
+					uniqueNumberMap[num] = true
+				}
+			}
+
+			uniqueNumbers := maps.Keys(uniqueNumberMap)
+			if len(uniqueNumbers) != 2 {
+				continue
+			} else {
+				gearRatio := uniqueNumbers[0].Val * uniqueNumbers[1].Val
+				gearRatioSum += gearRatio
+
+				fmt.Printf("Gear using parts %d and %d gives a gear ratio of %d\n", uniqueNumbers[0].Val, uniqueNumbers[1].Val, gearRatio)
+			}
+		}
+	}
+
+	fmt.Printf("Sum of all gear ratios: %d\n", gearRatioSum)
+	// End of Part 2
 
 }
 
@@ -163,11 +205,7 @@ func (c Cell) IsNumber() bool {
 }
 
 func (c Cell) IsSymbol() bool {
-	return c.Type == SYMBOL /*|| c.Type == ASTERISK*/
-}
-
-func (grid Grid) CellAt(l Loc) Cell {
-	return grid[l.Row][l.Col]
+	return c.Type == SYMBOL
 }
 
 func (grid Grid) Search() (numbers []Number, symbols []Symbol) {
@@ -179,7 +217,7 @@ func (grid Grid) Search() (numbers []Number, symbols []Symbol) {
 			case SYMBOL:
 				symbols = append(symbols, Symbol{cell})
 			case NUMBER:
-				if !grid.IsStartOfNumber(cell) {
+				if !grid.IsLeadingDigit(cell) {
 					continue
 				}
 
@@ -210,16 +248,20 @@ func (grid Grid) Search() (numbers []Number, symbols []Symbol) {
 	return
 }
 
-func (n Number) AdjacentToType(grid Grid, t CellType) (bool, string) {
-	adjacencies := append(grid.AdjacencyList(n.start), grid.AdjacencyList(n.end)...)
+func (c Cell) AdjacentToType(grid Grid, t CellType) (adjacent []Cell) {
+	adjacentCells := append(grid.AdjacencyList(c))
 
-	for _, cell := range adjacencies {
+	for _, cell := range adjacentCells {
 		if cell.Type == t {
-			return true, string(cell.Contents)
+			adjacent = append(adjacent, cell)
 		}
 	}
 
-	return false, ""
+	return
+}
+
+func (n Number) AdjacentToType(grid Grid, t CellType) (adjacent []Cell) {
+	return append(n.Start.AdjacentToType(grid, t), n.End.AdjacentToType(grid, t)...)
 }
 
 func (grid Grid) AdjacencyList(c Cell) []Cell {
@@ -235,7 +277,7 @@ func (grid Grid) AdjacencyList(c Cell) []Cell {
 	}
 }
 
-func (grid Grid) IsStartOfNumber(cell Cell) bool {
+func (grid Grid) IsLeadingDigit(cell Cell) bool {
 	if !cell.IsNumber() {
 		return false
 	}
