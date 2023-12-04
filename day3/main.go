@@ -16,7 +16,7 @@ type Loc struct {
 const (
 	NUMBER CellType = iota
 	SYMBOL
-	ASTERISK
+	// ASTERISK
 	EMPTY
 )
 
@@ -79,9 +79,11 @@ func main() {
 	sum := 0
 	numbers, _ /*symbols*/ := grid.Search()
 	for _, n := range numbers {
-		if n.AdjacentToType(grid, SYMBOL) || n.AdjacentToType(grid, ASTERISK) {
+		adjacent, sym := n.AdjacentToType(grid, SYMBOL)
+		// adjacentAst, ast := n.AdjacentToType(grid, ASTERISK)
+		if adjacent {
 			sum += n.num
-			fmt.Printf("Part %d at (%d, %d) is next to a symbol\n", n.num, n.start.Location.Row, n.start.Location.Col)
+			fmt.Printf("Part %d at (%d, %d) is next to a symbol (%s)\n", n.num, n.start.Location.Row, n.start.Location.Col, sym)
 		}
 	}
 
@@ -134,6 +136,7 @@ func CharToCell(char rune, row, col int) (c Cell) {
 	c.Location = Loc{row, col}
 
 	switch char {
+	case '0':
 	case '1':
 	case '2':
 	case '3':
@@ -146,8 +149,8 @@ func CharToCell(char rune, row, col int) (c Cell) {
 		c.Type = NUMBER
 	case '.':
 		c.Type = EMPTY
-	case '*':
-		c.Type = ASTERISK
+	// case '*':
+	// 	c.Type = ASTERISK
 	default:
 		c.Type = SYMBOL
 	}
@@ -160,7 +163,7 @@ func (c Cell) IsNumber() bool {
 }
 
 func (c Cell) IsSymbol() bool {
-	return c.Type == SYMBOL || c.Type == ASTERISK
+	return c.Type == SYMBOL /*|| c.Type == ASTERISK*/
 }
 
 func (grid Grid) CellAt(l Loc) Cell {
@@ -173,38 +176,31 @@ func (grid Grid) Search() (numbers []Number, symbols []Symbol) {
 			switch cell.Type {
 			case EMPTY:
 				continue
-			case ASTERISK:
-				symbols = append(symbols, Symbol{cell})
 			case SYMBOL:
 				symbols = append(symbols, Symbol{cell})
 			case NUMBER:
-				if West(grid, cell).IsNumber() && West(grid, cell) != cell {
-					// This is already part of a number, ignore
+				if !grid.IsStartOfNumber(cell) {
 					continue
 				}
+
 				secondDigit := East(grid, cell)
-				if secondDigit.IsNumber() {
-					if secondDigit == cell {
-						// Same Cell -- write down just single digit
-						num := RunesToInt(cell.Contents)
-						numbers = append(numbers, Number{num, cell, cell})
+				if !secondDigit.IsNumber() || secondDigit == cell {
+					// One unique digit
+					num := RunesToInt(cell.Contents)
+					numbers = append(numbers, Number{num, cell, cell})
+					continue
+				} else {
+					thirdDigit := East(grid, secondDigit)
+					if !thirdDigit.IsNumber() || thirdDigit == secondDigit {
+						// Two unique digits
+						num := RunesToInt(secondDigit.Contents, cell.Contents)
+						numbers = append(numbers, Number{num, cell, secondDigit})
+						continue
 					} else {
-						thirdDigit := East(grid, secondDigit)
-						if thirdDigit.IsNumber() {
-							if thirdDigit == secondDigit {
-								// Same Cell -- write down two digits
-								num := RunesToInt(secondDigit.Contents, cell.Contents)
-								numbers = append(numbers, Number{num, cell, secondDigit})
-							} else {
-								// Three unique digits
-								num := RunesToInt(thirdDigit.Contents, secondDigit.Contents, cell.Contents)
-								numbers = append(numbers, Number{num, cell, thirdDigit})
-							}
-						} else {
-							// Already have two digits -- write them down
-							num := RunesToInt(secondDigit.Contents, cell.Contents)
-							numbers = append(numbers, Number{num, cell, secondDigit})
-						}
+							// Three unique digits
+							num := RunesToInt(thirdDigit.Contents, secondDigit.Contents, cell.Contents)
+							numbers = append(numbers, Number{num, cell, thirdDigit})
+							continue
 					}
 				}
 			}
@@ -214,18 +210,16 @@ func (grid Grid) Search() (numbers []Number, symbols []Symbol) {
 	return
 }
 
-func (n Number) AdjacentToType(grid Grid, t CellType) bool {
+func (n Number) AdjacentToType(grid Grid, t CellType) (bool, string) {
 	adjacencies := append(grid.AdjacencyList(n.start), grid.AdjacencyList(n.end)...)
 
 	for _, cell := range adjacencies {
-		if cell == n.start || cell == n.end {
-			continue
-		} else if cell.Type == t {
-			return true
+		if cell.Type == t {
+			return true, string(cell.Contents)
 		}
 	}
 
-	return false
+	return false, ""
 }
 
 func (grid Grid) AdjacencyList(c Cell) []Cell {
@@ -239,6 +233,19 @@ func (grid Grid) AdjacencyList(c Cell) []Cell {
 		West(grid, c),
 		North(grid, West(grid, c)),
 	}
+}
+
+func (grid Grid) IsStartOfNumber(cell Cell) bool {
+	if !cell.IsNumber() {
+		return false
+	}
+
+	if West(grid, cell).IsNumber() && West(grid, cell) != cell {
+		// This is already part of a number, ignore
+		return false
+	}
+
+	return true
 }
 
 func RunesToInt(runes ...rune) int {
